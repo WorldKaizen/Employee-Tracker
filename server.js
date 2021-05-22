@@ -1,18 +1,175 @@
-onst mysql = require('mysql');
-const inquirer = require('inquirer');
-const chalk = require('chalk');
-const cTable = require('console.table');
-const connection = require('./config/connection')
-const startScreen = ['View all Employees', 'View all Emplyees by Department', 'View all Employees by Manager', 'Add Employee', 'Remove Employee', 'Update Employee Role', 'View all Roles', 'Add Role', 'Remove Role', 'View all Departments', 'Add Department', 'Remove Department', 'Exit']
-const allEmployeeQuery = `SELECT e.id, e.first_name AS "First Name", e.last_name AS "Last Name", r.title, d.department_name AS "Department", IFNULL(r.salary, 'No Data') AS "Salary", CONCAT(m.first_name," ",m.last_name) AS "Manager"
-FROM employees e
-LEFT JOIN roles r 
-ON r.id = e.role_id 
-LEFT JOIN departments d 
-ON d.id = r.department_id
-LEFT JOIN employees m ON m.id = e.manager_id
-ORDER BY e.id;`
-const addEmployeeQuestions = ['What is the first name?', 'What is the last name?', 'What is their role?', 'Who is their manager?']
-// const roleQuery = 'SELECT * from roles; SELECT CONCAT (e.first_name," ",e.last_name) AS full_name, r.title, d.department_name FROM employees e INNER JOIN roles r ON r.id = e.role_id INNER JOIN departments d ON d.id = r.department_id WHERE department_name = "Management"'
-const roleQuery = 'SELECT * from roles; SELECT CONCAT (e.first_name," ",e.last_name) AS full_name FROM employees e'
-const mgrQuery = 'SELECT CONCAT (e.first_name," ",e.last_name) AS full_name, r.title, d.department_name FROM employees e INNER JOIN roles r ON r.id = e.role_id INNER JOIN departments d ON d.id = r.department_id WHERE department_name = "Management";'
+ar mysql = require("mysql");
+var inquirer = require("inquirer");
+// var cTable = require("console.table");
+
+var con = mysql.createConnection({
+  host: "localhost",
+  port: 3306,
+  user: "root",
+  password: "Nepal1@",
+  database: "Employee",
+  multipleStatements: true,
+});
+//establishing connection, confirming success/failure
+con.connect(function (err) {
+  if (err) throw err;
+  console.log("Connected as id " + con.threadId + "\n");
+  HomeView();
+});
+
+function HomeView() {
+  inquirer
+    .prompt([
+      {
+        message: "Whate would you like to do? (Use arrow keys)",
+        type: "list",
+        choices: [
+          "View all Employee",
+          "View All Employee By Department",
+          "View All Employees By Role",
+          "Add Employee",
+          "Remove Employee",
+          "Update Employee Role",
+          "Update Employee Manager",
+          "View the total utilized budget of a department",
+          "Exit\n",
+        ],
+        name: "task",
+      },
+    ])
+    .then(function (answer) {
+      var task = answer.task;
+      switch (task) {
+        case "View all Employee":
+          DetailTableView();
+          break;
+        case "View All Employee By Department":
+          EmployeeByDepartment();
+          break;
+        case "View All Employees By Role":
+          viewEmployeeByRole();
+          break;
+        case "Add Employee":
+          addEmployee();
+          break;
+        case "Remove Employee":
+          deleteEmployee();
+          break;
+        case "Update Employee Role":
+          updateEmployeeRole();
+          break;
+        case "Update Employee Manager":
+          updateEmployeeManager() 
+          break;
+        case "Add Roles":
+          addRole();
+          break;
+        case "View the total utilized budget of a department":
+          viewTotalUtilizedBudget()
+          break;
+        case "Exit \n":
+          exit();
+          break;
+      }
+    });
+}
+
+function DetailTableView() {
+  con.query(
+    "SELECT e.id,e.first_name,e.last_name,r.title,d.name,r.salary from Employee AS e LEFT JOIN Roles as r ON e.role_id =r.id LEFT JOIN department as d ON r.department_id=d.id",
+    function (err, data) {
+      if (err) throw err;
+      console.log("\n");
+      console.table(data);
+      HomeView();
+    }
+  );
+}
+
+function EmployeeByDepartment() {
+  con.query(
+    "SELECT d.id as value,d.name FROM department as d",
+    function (err, data) {
+      if (err) throw err;
+      console.log("\n");
+      inquirer
+        .prompt([
+          {
+            message: "Please choose department",
+            type: "list",
+            choices: data,
+            name: "department",
+          },
+        ])
+        .then(function (answer) {
+          var dept = answer.department;
+          EmployeByDepartment(dept);
+        })
+        .catch((e) => console.log(e));
+    }
+  );
+}
+
+function EmployeByDepartment(id) {
+  con.query(
+    `SELECT e.id,e.first_name,e.last_name,r.title,d.name,r.salary from Employee AS e LEFT JOIN Roles as r ON e.role_id =r.id LEFT JOIN department as d ON r.department_id=${id}`,
+    function (err, data) {
+      if (err) throw err;
+      console.log("\n");
+      console.table(data);
+      HomeView();
+    }
+  );
+}
+
+async function addEmployee() {
+  let dept;
+  let role;
+  con.query(
+    "SELECT r.id as value,r.title as name FROM Roles as r;SELECT d.id as value,d.name FROM department as d",
+    function (err, data) {
+      if (err) throw err;
+      role = data[0];
+      dept = data[1];
+      inquirer
+        .prompt([
+          {
+            message: "First Name:",
+            type: "input",
+            name: "fname",
+          },
+          {
+            message: "Last Name:",
+            type: "input",
+            name: "lname",
+          },
+          {
+            message: "Choose Department:",
+            type: "list",
+            choices: dept,
+            name: "dept",
+          },
+          {
+            message: "Choose Roles:",
+            type: "list",
+            choices: role,
+            name: "role",
+          },
+        ])
+        .then(function (answer) {
+          var newDept = answer.dept;
+          var newRole = answer.role;
+          var newFname = answer.fname;
+          var newLname = answer.lname;
+          con.query(
+            "INSERT INTO Employee (first_name, last_name,role_id,manager_id) VALUES (?,?,?,?)",
+            [newFname, newLname, newRole, newDept],
+            function (err) {
+              if (err) throw err;
+              HomeView();
+            }
+          );
+        });
+    }
+  );
+}
